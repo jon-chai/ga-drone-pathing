@@ -1,11 +1,17 @@
 import random as rand
 
 class Vehicle:
-    
+        
     mr = 0.2
-    feature_creation = [lambda x: random(-2, 2), lambda x:random(-2, 2), lambda x:random(0, 100), lambda x:random(0, 100)]
+    feature_creation = [lambda x: random(-2, 2), lambda x:random(-2, 2), lambda x:random(0, 100), 
+                        lambda x:random(0, 100), lambda x: random(PI/6, PI/2)]
     
-    def __init__(self, x, y, dna=None):
+    def __init__(self, x=None, y=None, dna=None):
+        
+        if x is None:
+            x = random(width)
+        if y is None:
+            y = random(height)
         
         self.position = PVector(x, y)
         self.velocity = PVector(0, -2)
@@ -15,24 +21,26 @@ class Vehicle:
         self.maxspeed = 5
         self.maxforce = 0.5
         
-        self.health = 1
-        
-        
+        self.points = 0
+        self.alive = True
+                
         if dna is None:
-            self.dna = [0] * 4
+            self.dna = [0] * 5
             # Food weight
             self.dna[0] = random(-2, 2)
             # Poison weight
             self.dna[1] = random(-2, 2)
             # Food perception
-            self.dna[2] = random(0, 100)
+            self.dna[2] = random(20, 100)
             # Poison perception
-            self.dna[3] = random(0, 100)
+            self.dna[3] = random(20, 100)
+            # Field of view
+            self.dna[4] = random(PI/6, PI/2)
         else:
             self.dna = dna[:]
     
     def update(self):
-        self.health -= 0.01
+        # self.points += 0.01
         self.velocity.add(self.acceleration)
         self.velocity.limit(self.maxspeed)
         self.position.add(self.velocity)
@@ -51,8 +59,9 @@ class Vehicle:
         return steer
     
     def behaviors(self, good, bad):
-        steerG = self.eat(good, 0.5, self.dna[2])
-        steerB = self.eat(bad, -10, self.dna[3])
+                
+        steerG = self.eat(good, 1, self.dna[2])
+        steerB = self.eat(bad, -1, self.dna[3])
         
         steerG.mult(self.dna[0])
         steerB.mult(self.dna[1])
@@ -60,39 +69,61 @@ class Vehicle:
         self.applyForce(steerG)
         self.applyForce(steerB)
     
-    def clone(self):
-        if random(1) < 0.005:
-            return Vehicle(self.position.x, self.position.y, self.dna)
+    # def clone(self):
+    #     if random(1) < 0.005:
+    #         return Vehicle(self.position.x, self.position.y, self.dna)
     
     def mutate(self):
         for idx, gene in enumerate(self.dna):
             if random(1) < self.mr:
                 self.dna[idx] = self.feature_creation[idx](0)
-    
+        
     def eat(self, things, nutrition, perception):
+        
         record = width+height
         closest = None
+        
+        theta = self.velocity.heading2D();
+        a = theta - self.dna[4]/2
+        b = theta + self.dna[4]/2
+        
         for _, item in enumerate(things):
             d = self.position.dist(item)
             
-            if d < self.maxspeed:
-                things.remove(item)
-                self.health += nutrition
+            if d < 3:
+                if nutrition < 0:
+                    self.alive = False
+                else:
+                    things.remove(item)
+                    self.points += nutrition
             elif d < record and d < perception:
-                record = d
-                closest = item
-    
+                if nutrition < 0:
+                    dir = PVector.sub(item, self.position)
+                    if a < atan(dir.y/dir.x) < b:
+                        record = d
+                        closest = item
+                else:
+                    record = d
+                    closest = item                
+                
         if closest is not None:
             return self.seek(closest)
         return PVector(0, 0)
     
-    def dead(self):
-        return self.health <= 0
+    def crash(self, things, idx):
+        for thing in things[idx+1:]:
+                d = self.position.dist(thing.position)
+                if d < 5:
+                    self.alive = False
+                    thing.alive = False
+            
     
-    def boundaries(self):
+    # def dead(self):
+    #     return self.health <= 0
+    
+    def boundaries(self, d):
         
         desired = None
-        d = 25
         
         if self.position.x < d:
             desired = PVector(self.maxspeed, self.velocity.y)
@@ -127,9 +158,13 @@ class Vehicle:
             circle(0, 0, self.dna[2] * 2)
             stroke(255, 0, 0)
             line(0, 0, 0, -self.dna[1] * 20)
-            circle(0, 0, self.dna[3] * 2)
+            # circle(0, 0, self.dna[3] * 2)
+            fill(255,0,0,75)
+            noStroke()
+            arc(0, 0, self.dna[3] * 2, self.dna[3] * 2, -self.dna[4]/2 - PI/2, self.dna[4]/2 - PI/2)
         
-        col = lerpColor(color(255, 0, 0), color(0, 255, 0), self.health)
+        # col = lerpColor(color(0, 255, 0), color(255, 0, 0), self.points)
+        col = color(255, 255, 255)
         
         fill(col);
         stroke(col);
@@ -142,70 +177,94 @@ class Vehicle:
 
         
         popMatrix();
-            
-def setup():
-    global vehicles, food, poison, debug, gen, counter
-    size(800, 600)
-    vehicles = [Vehicle(random(width), random(height)) for i in range(10)]
-    food = [PVector(random(width), random(height)) for i in range(40)]
-    poison = [PVector(random(width), random(height)) for i in range(20)]
-    debug = True
-    gen = 0
-    counter = 0
-    print(gen)
 
-def mouseClicked():
-    global debug
-    debug = not debug
-
-def asort(seq):
-    return sorted(range(len(seq)), key=seq.__getitem__)
 
 def crossover_mid(mating_pool):
+    
+    global num_vehicles
     
     children = []
     
     crossover_point = int(len(mating_pool[0].dna) / 2)
     
-    for i in range(len(vehicles) - len(mating_pool)):
+    for i in range(num_vehicles - len(mating_pool)):
         parents = rand.sample(mating_pool, 2)
         par0 = parents[0].dna[:crossover_point]
         par1 = parents[1].dna[crossover_point:]
         child_genome = par0 + par1
-        children.append(Vehicle(random(width), random(height), child_genome))
+        children.append(Vehicle(dna=child_genome))
         children[-1].mutate()
     
     for parent in mating_pool:
         children.append(Vehicle(random(width), random(height), parent.dna[:]))
         
     return children
+        
+def create_board(num_food, num_poison, bound):
+    food = [PVector(random(bound, width-bound), random(bound, height-bound)) for i in range(num_food)]
+    poison = [PVector(random(bound, width-bound), random(bound, height-bound)) for i in range(num_poison)]
+    
+    for y in range(200, 400, 5):
+        poison.append(PVector(200, y))
+    
+    return food, poison
+
+def create_wall(x1, y1, x2, y2):
+    global poison
+    
+    xs = []
+    for i in range(x1, x2, 5):
+        xs.append(i)
+    ys = []
+    # for i in range(
+            
+def setup():
+    global vehicles, food, poison, debug, gen, counter, num_vehicles, bound
+    size(800, 600)
+    num_vehicles = 10
+    bound = 25
+    vehicles = [Vehicle(random(width), random(height)) for i in range(num_vehicles)]
+    food, poison = create_board(40, 20, bound)
+    debug = True
+    gen = 0
+    counter = 0
+
+def mouseClicked():
+    global debug
+    debug = not debug
+
+def mouseDragged():
+    poison.append(PVector(mouseX, mouseY))
+
+def asort(seq):
+    return sorted(range(len(seq)), key=seq.__getitem__)
+
 
 def draw():
-    global gen, counter, vehicles
+    global gen, counter, vehicles, food, poison, bound
     
     counter += 1
     
-    if counter > 300 or len(vehicles) == 0:
+    if counter > 1200 or len(vehicles) == 0:
         gen += 1
-        print(gen)
+        print('Generation: {}'.format(gen))
         counter = 0
         
-        best_vehicles = sorted(vehicles, key=lambda x: x.health, reverse=True)[:3]
-        # print(best_vehicles)
-        # print([v.health for v in best_vehicles])
+        sorted_vehicles = sorted(vehicles, key=lambda x: x.points, reverse=True)
+        while len(sorted_vehicles) < 4:
+            sorted_vehicles.append(Vehicle())
+        best_vehicles = sorted_vehicles[:4]
+        print([v.points for v in best_vehicles])
         vehicles = crossover_mid(best_vehicles)
-        # print(new_vehicles)
-        
-        
-        
-    
+        food, poison = create_board(40 + 10 * gen, 20, bound)
+            
     background(51)
     
-    if random(1) < 0.1:
-        food.append(PVector(random(width), random(height)))
+    # if random(1) < 0.1:
+    #     food.append(PVector(random(bound, width-bound), random(bound, height-bound))
     
-    if random(1) < 0.02:
-        poison.append(PVector(random(width), random(height)))
+    # if random(1) < 0.02:
+    #     poison.append(PVector(random(width), random(height)))
     
     for item in food:
         fill(0, 255, 0)
@@ -217,14 +276,13 @@ def draw():
         noStroke()
         ellipse(item.x, item.y, 8, 8)
       
-    for _, v in enumerate(vehicles):
-        v.boundaries()
+    for idx, v in enumerate(vehicles):
+        v.boundaries(bound)
         v.behaviors(food, poison)
+        v.crash(vehicles, idx)
         v.update()
         v.display()
-        # newVehicle = v.clone()
-        # if newVehicle is not None:
-        #     vehicles.append(newVehicle)
-        # if v.dead():
-        #     food.append(PVector(v.position.x, v.position.y))
-        #     vehicles.remove(v)
+    
+    for _, v in enumerate(vehicles):
+        if not v.alive:
+            vehicles.remove(v)
