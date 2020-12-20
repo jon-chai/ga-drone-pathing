@@ -6,9 +6,9 @@ class Vehicle:
     # Food weight, Poison weight, Food percep, Poison percep, FOV, Drone weight, Drone percep, Max acceleration
     feature_creation = [lambda x: random(0, 5), lambda x:random(-5, 0), lambda x:random(20, 100), 
                         lambda x:random(20, 100), lambda x:random(PI/6, PI/2), lambda x:random(-5, 0),
-                        lambda x:random(20, 100), lambda x:random(0.1, 2)]
+                        lambda x:random(20, 100), lambda x:random(0.1, 1)]
     
-    feature_limits = [(0, 5), (-5, 0), (20, 100), (20, 100), (PI/6, PI/2), (-5, 0), (20, 100), (0.1, 2)]
+    feature_limits = [(0, 5), (-5, 0), (20, 100), (20, 100), (PI/6, PI/2), (-5, 0), (20, 100), (0.1, 1)]
     
     def __init__(self, x=None, y=None, dna=None):
         
@@ -261,6 +261,7 @@ def setup():
     counter = 0
     best_drones = []
     toggle = 0
+    frameRate(240)
     
     #tcreate_test_board(120, 60, bound)
 
@@ -287,7 +288,7 @@ def keyPressed():
             
             # human drone
             # Food weight, Poison weight, Food percep, Poison percep, FOV, Drone weight, Drone percep, Max Accel
-            human = Vehicle(x = width/2, y = height/2, dna = [5, -5, 100, 100, PI/3, -5, 100, 2])
+            human = Vehicle(x = width/2, y = height/2, dna = [5, -5, 100, 100, PI/3, -5, 100, 1])
             vehicles.append(human)
             
             # add learned drones
@@ -307,10 +308,14 @@ def keyPressed():
             best_dnas = loadStrings('results.txt')
             next_vehicles = []
             # human drones
-            vehicles = [Vehicle(x = random(bound, width - bound), y = random(bound, height - bound), dna = [5, -5, 100, 100, PI/3, -5, 100, 2]) for i in range(8)]
+            vehicles = [Vehicle(x = random(bound, width - bound), y = random(bound, height - bound), dna = [5, -5, 100, 100, PI/3, -5, 100, 1]) for i in range(8)]
+            xs = [v.position.x for v in vehicles]
+            ys = [v.position.y for v in vehicles]
             for line in best_dnas:
                 dna_strings = line.split(',')
-                next_v = [Vehicle(x = random(bound, width - bound), y = random(bound, height - bound), dna = [float(x) for x in dna_strings]) for i in range(8)]
+                next_v = [Vehicle(x = xs[i], y = ys[i], dna = [float(x) for x in dna_strings]) for i in range(8)]
+                print(next_v[0].position)
+                print(next_v[1].position)
                 next_vehicles.append(next_v)
         
     elif key == 'q':
@@ -353,7 +358,7 @@ def draw():
             best_vehicles = sorted_vehicles[:4]
             print([v.points for v in best_vehicles])
             best_drones.append(','.join([str(x) for x in best_vehicles[0].dna]))
-            vehicles = crossover_mid(best_vehicles)
+            vehicles = crossover_random(best_vehicles)
             food, poison = create_board(120, 60, bound)
        
     elif toggle == 1:
@@ -361,10 +366,10 @@ def draw():
         
         if len(vehicles) == 0 or len(food) == 0 or counter == 1200:
             if len(vehicles) == 0:
-                print('Vehicle died! Generation: {}'.format(len(next_vehicles)))
+                print('Vehicle died!  Gen: {} Counter: {}, Points: {}'.format(len(next_vehicles), counter, 120 - len(food)))
                 
             else:
-                print('Complete! Gen: {}, Counter: {}, Points: {}'.format(len(next_vehicles), counter, vehicles[0].points))
+                print('Vehicle lived! Gen: {}, Counter: {}, Points: {}'.format(len(next_vehicles), counter, vehicles[0].points))
             counter = 0
             vehicles = [next_vehicles.pop()]
             load_test_world()
@@ -372,9 +377,9 @@ def draw():
     else:
         counter += 1
         
-        if len(vehicles) == 0 or len(food) == 0 or counter == 1200:
+        if len(vehicles) == 0 or len(food) == 0 or counter == 800:
             if len(vehicles) == 0:
-                print('All died! Generation: {}'.format(len(next_vehicles)))
+                print('All died! Gen: {} Counter: {}, Points: {}'.format(len(next_vehicles), counter, 120 - len(food)))
             else:
                 print('Complete! Gen: {}, Counter: {}, Points: {}, Total Points: {}/120'.format(len(next_vehicles), counter, [x.points for x in vehicles], sum([x.points for x in vehicles])))
             counter = 0
@@ -400,6 +405,6 @@ def draw():
         v.display()
     
     for _, v in enumerate(vehicles):
-        if not v.alive:
+        if not v.alive and counter > 20:
             vehicles.remove(v)
         
