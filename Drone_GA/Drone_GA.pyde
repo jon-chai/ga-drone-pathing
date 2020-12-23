@@ -3,7 +3,7 @@ import random as rand
 class Vehicle:
         
     mr = 0.1
-    # Food weight, Poison weight, Food percep, Poison percep, FOV, Drone weight, Drone percep, Max acceleration
+    # Target weight, Obstacle weight, Target percep, Obstacle percep, FOV, Drone weight, Drone percep, Max acceleration
     feature_creation = [lambda x: random(0, 5), lambda x:random(-5, 0), lambda x:random(20, 100), 
                         lambda x:random(20, 100), lambda x:random(PI/6, PI/2), lambda x:random(-5, 0),
                         lambda x:random(20, 100), lambda x:random(0.1, 1)]
@@ -34,6 +34,9 @@ class Vehicle:
             self.dna = dna[:]
     
     def update(self):
+        '''
+        Updates the acceleration, velocity, and position of the vehicle
+        '''
         # self.points += 0.01
         self.acceleration.limit(self.dna[7])
         self.velocity.add(self.acceleration)
@@ -42,9 +45,15 @@ class Vehicle:
         self.acceleration.mult(0)
     
     def applyForce(self, force):
+        '''
+        Adds force to the acceleration of the vehicle
+        '''
         self.acceleration.add(force)
     
     def seek(self, target):
+        '''
+        Returns the vector pointing from self to the target with magnitude scaled according to acceleration
+        '''
         desired = PVector.sub(target, self.position)
         
         desired.setMag(self.maxspeed)
@@ -54,7 +63,9 @@ class Vehicle:
         return steer
     
     def behaviors(self, good, bad, drones, idx):
-                
+        '''
+        Finds the nearest target, obstacle, and drone and applies resultant forces 
+        '''
         steerG = self.eat(good, 1, self.dna[2])
         steerB = self.eat(bad, -1, self.dna[3])
         steerD = self.crash(drones, idx, self.dna[6])
@@ -68,20 +79,29 @@ class Vehicle:
         self.applyForce(steerD)
     
     def mutate(self):
+        '''
+        Mutates genes with probability [mutation rate], setting to a random value 
+        '''
         for idx, gene in enumerate(self.dna):
             if random(1) < self.mr:
                 self.dna[idx] = self.feature_creation[idx](0)
     
     def bounded_mutation(self):
+        '''
+        Mutates genes with probability [mutation rate], setting to a bounded value based on previous value
+        '''
         for idx, gene in enumerate(self.dna):
             if random(1) < self.mr:
-                self.dna[idx] *= random(0.8, 1.2)
+                self.dna[idx] *= random(0.5, 1.5)
                 if self.dna[idx] < self.feature_limits[idx][0]:
                     self.dna[idx] = self.feature_limits[idx][0]
                 elif self.dna[idx] > self.feature_limits[idx][1]:
                     self.dna[idx] = self.feature_limits[idx][1]
         
     def eat(self, things, nutrition, perception):
+        '''
+        Returns the vector seeking the nearest target/obstacle, checking if it's percievable. Kills vehicle if it hits obstacle.
+        '''
         
         record = width+height
         closest = None
@@ -115,6 +135,9 @@ class Vehicle:
         return PVector(0, 0)
     
     def crash(self, things, idx, perception):
+        '''
+        Returns vector seeking the nearest drone, checking if it's percievable. Kills vehicle if it hits another vehicle.
+        '''
         record = width + height
         closest = None
         
@@ -131,6 +154,9 @@ class Vehicle:
         return PVector(0, 0)
     
     def boundaries(self, d):
+        '''
+        Applies force such that vehicles can never exit the boundary window
+        '''
         
         desired = None
         
@@ -152,6 +178,9 @@ class Vehicle:
             self.applyForce(steer)
     
     def display(self):
+        '''
+        Displays all targets, obstacles, and drones on the current canvas
+        '''
         theta = self.velocity.heading2D() + PI/2;
 
         pushMatrix();
@@ -194,7 +223,9 @@ class Vehicle:
 
 
 def crossover_mid(mating_pool):
-    
+    '''
+    Runs crossover mid on the mating pool and returns the next generation of vehicles
+    '''
     global num_vehicles
     
     children = []
@@ -207,7 +238,8 @@ def crossover_mid(mating_pool):
         par1 = parents[1].dna[crossover_point:]
         child_genome = par0 + par1
         children.append(Vehicle(dna=child_genome))
-        children[-1].mutate()
+        # children[-1].mutate()
+        children[-1].bounded_mutation()
     
     for parent in mating_pool:
         children.append(Vehicle(random(width), random(height), parent.dna[:]))
@@ -215,7 +247,9 @@ def crossover_mid(mating_pool):
     return children
 
 def crossover_random(mating_pool):
-    
+    '''
+    Runs crossover random on the mating pool and returns the next generation of vehicles
+    '''
     global num_vehicles
     
     children = []
@@ -223,39 +257,49 @@ def crossover_random(mating_pool):
     for i in range(num_vehicles - len(mating_pool)):
         parents = rand.sample(mating_pool, 2)
         child_genome = []
-        for i in range(len(self.feature_limits)):
+        for i in range(len(Vehicle.feature_limits)):
             if random(1) < 0.5:
                 child_genome.append(parents[0].dna[i])
             else:
                 child_genome.append(parents[1].dna[i])
         children.append(Vehicle(dna=child_genome))
-        children[-1].mutate()
+        # children[-1].mutate()
+        children[-1].bounded_mutation()
     
     for parent in mating_pool:
         children.append(Vehicle(random(width), random(height), parent.dna[:]))
         
     return children
         
-def create_board(num_food, num_poison, bound):
-    food = [PVector(random(bound, width-bound), random(bound, height-bound)) for i in range(num_food)]
-    poison = [PVector(random(bound, width-bound), random(bound, height-bound)) for i in range(num_poison)]
+def create_board(num_targets, num_obstacles, bound):
+    '''
+    Creates a board with a specified amount of targets and obstacles
+    '''
+    targets = [PVector(random(bound, width-bound), random(bound, height-bound)) for i in range(num_targets)]
+    obstacles = [PVector(random(bound, width-bound), random(bound, height-bound)) for i in range(num_obstacles)]
     
-    return food, poison
+    return targets, obstacles
 
-def create_test_board(num_food, num_poison, bound):
-    food = ['{},{}'.format(random(bound, width-bound), random(bound, height-bound)) for i in range(num_food)]
-    poison = ['{},{}'.format(random(bound, width-bound), random(bound, height-bound)) for i in range(num_poison)]
+def create_test_board(num_targets, num_obstacles, bound):
+    '''
+    Creates a test board with specified amount of targets and obstacles and saves them to respective files
+    '''
+    targets = ['{},{}'.format(random(bound, width-bound), random(bound, height-bound)) for i in range(num_targets)]
+    obstacles = ['{},{}'.format(random(bound, width-bound), random(bound, height-bound)) for i in range(num_obstacles)]
     
-    saveStrings('test_food.txt', food)
-    saveStrings('test_poison.txt', poison)
+    saveStrings('test_targets.txt', targets)
+    saveStrings('test_obstacles.txt', obstacles)
             
 def setup():
-    global vehicles, food, poison, debug, gen, counter, num_vehicles, bound, best_drones, toggle
+    '''
+    Sets up all parameters before simulation starts
+    '''
+    global vehicles, targets, obstacles, debug, gen, counter, num_vehicles, bound, best_drones, toggle
     size(1200, 800)
     num_vehicles = 8
     bound = 25
     vehicles = [Vehicle(random(width), random(height)) for i in range(num_vehicles)]
-    food, poison = create_board(120, 60, bound)
+    targets, obstacles = create_board(120, 60, bound)
     debug = True
     gen = 0
     counter = 0
@@ -263,16 +307,26 @@ def setup():
     toggle = 0
     frameRate(240)
     
-    #tcreate_test_board(120, 60, bound)
-
 def mouseClicked():
+    '''
+    Toggles debug mode when mouse is clicked on canvas
+    '''
     global debug
     debug = not debug
 
-# def mouseDragged():
-#     poison.append(PVector(mouseX, mouseY))
+def mouseDragged():
+    '''
+    Draws obstacles at location where mouse is currently dragged on canvas
+    '''
+    obstacles.append(PVector(mouseX, mouseY))
 
 def keyPressed():
+    '''
+    Saves best drone from all generations to text file when 's' is pressed
+    Toggles mode, cycling between training, testing, and batch testing when 't' is pressed
+    Quits simulation when 'q' is pressed
+    Generates a new test world when 'g' is pressed
+    '''
     global vehicles, counter, toggle, next_vehicles, bound
     
     if key == 's':
@@ -287,8 +341,9 @@ def keyPressed():
             counter = 0
             
             # human drone
-            # Food weight, Poison weight, Food percep, Poison percep, FOV, Drone weight, Drone percep, Max Accel
+            # Target weight, Obstacle weight, Target percep, Obstacle percep, FOV, Drone weight, Drone percep, Max Accel
             human = Vehicle(x = width/2, y = height/2, dna = [5, -5, 100, 100, PI/3, -5, 100, 1])
+            # human = Vehicle(x = width/2, y = height/2, dna = [1.61259531975,-5,87.5954925465,71.5346755981,1.16954231262,-2.41530428045,67.847442627,0.978065133095])
             vehicles.append(human)
             
             # add learned drones
@@ -309,45 +364,48 @@ def keyPressed():
             next_vehicles = []
             # human drones
             vehicles = [Vehicle(x = random(bound, width - bound), y = random(bound, height - bound), dna = [5, -5, 100, 100, PI/3, -5, 100, 1]) for i in range(8)]
+            # vehicles = [Vehicle(x = random(bound, width - bound), y = random(bound, height - bound), dna = [1.61259531975,-5,87.5954925465,71.5346755981,1.16954231262,-2.41530428045,67.847442627,0.978065133095]) for i in range(8)]
             xs = [v.position.x for v in vehicles]
             ys = [v.position.y for v in vehicles]
             for line in best_dnas:
                 dna_strings = line.split(',')
                 next_v = [Vehicle(x = xs[i], y = ys[i], dna = [float(x) for x in dna_strings]) for i in range(8)]
-                print(next_v[0].position)
-                print(next_v[1].position)
                 next_vehicles.append(next_v)
         
     elif key == 'q':
         exit()
+    
+    elif key == 'g':
+        create_test_board(120, 60, bound)
         
 def load_test_world():
-    global food, poison
+    '''
+    Reads data from text files and populates the world with their respective targets and obstacles
+    '''
+    global targets, obstacles
     
-    food_string = loadStrings('test_food.txt')
-    food = []
-    for line in food_string:
+    targets_string = loadStrings('test_targets.txt')
+    targets = []
+    for line in targets_string:
         data = line.split(',')
-        food.append(PVector(float(data[0]), float(data[1])))
+        targets.append(PVector(float(data[0]), float(data[1])))
         
-    poison_string = loadStrings('test_poison.txt')
-    poison = []
-    for line in poison_string:
+    obstacles_string = loadStrings('test_obstacles.txt')
+    obstacles = []
+    for line in obstacles_string:
         data = line.split(',')
-        poison.append(PVector(float(data[0]), float(data[1])))
-    
-    
-def asort(seq):
-    return sorted(range(len(seq)), key=seq.__getitem__)
-
+        obstacles.append(PVector(float(data[0]), float(data[1])))
 
 def draw():
-    global gen, counter, vehicles, food, poison, bound, best_drones, toggle
+    '''
+    Runs continuously
+    '''
+    global gen, counter, vehicles, targets, obstacles, bound, best_drones, toggle
     
     if toggle == 0:
         counter += 1
         
-        if counter > 800 or len(vehicles) == 0 or len(food) == 0:
+        if counter > 800 or len(vehicles) == 0 or len(targets) == 0:
             gen += 1
             print('Generation: {}'.format(gen))
             counter = 0
@@ -359,48 +417,55 @@ def draw():
             print([v.points for v in best_vehicles])
             best_drones.append(','.join([str(x) for x in best_vehicles[0].dna]))
             vehicles = crossover_random(best_vehicles)
-            food, poison = create_board(120, 60, bound)
+            targets, obstacles = create_board(120, 60, bound)
        
     elif toggle == 1:
         counter += 1
         
-        if len(vehicles) == 0 or len(food) == 0 or counter == 1200:
+        if len(vehicles) == 0 or len(targets) == 0 or counter == 1200:
             if len(vehicles) == 0:
-                print('Vehicle died!  Gen: {} Counter: {}, Points: {}'.format(len(next_vehicles), counter, 120 - len(food)))
-                
+                print('Vehicle died!  Gen: {} Counter: {}, Points: {}'.format(len(next_vehicles), counter, 120 - len(targets)))
             else:
                 print('Vehicle lived! Gen: {}, Counter: {}, Points: {}'.format(len(next_vehicles), counter, vehicles[0].points))
             counter = 0
-            vehicles = [next_vehicles.pop()]
+            try:
+                vehicles = [next_vehicles.pop()]
+            except:
+                print('Testing Complete!')
+                exit()
             load_test_world()
     
     else:
         counter += 1
         
-        if len(vehicles) == 0 or len(food) == 0 or counter == 800:
+        if len(vehicles) == 0 or len(targets) == 0 or counter == 800:
             if len(vehicles) == 0:
-                print('All died! Gen: {} Counter: {}, Points: {}'.format(len(next_vehicles), counter, 120 - len(food)))
+                print('All died! Gen: {} Counter: {}, Points: {}'.format(len(next_vehicles), counter, 120 - len(targets)))
             else:
                 print('Complete! Gen: {}, Counter: {}, Points: {}, Total Points: {}/120'.format(len(next_vehicles), counter, [x.points for x in vehicles], sum([x.points for x in vehicles])))
             counter = 0
-            vehicles = next_vehicles.pop()
+            try:
+                vehicles = next_vehicles.pop()
+            except:
+                print('Testing Complete!')
+                exit()
             load_test_world()
         
     background(51)
     
-    for item in food:
+    for item in targets:
         fill(0, 255, 0)
         noStroke()
         ellipse(item.x, item.y, 8, 8)
         
-    for item in poison:
+    for item in obstacles:
         fill(255, 0, 0)
         noStroke()
         ellipse(item.x, item.y, 8, 8)
     
     for idx, v in enumerate(vehicles):
         v.boundaries(bound)
-        v.behaviors(food, poison, vehicles, idx)
+        v.behaviors(targets, obstacles, vehicles, idx)
         v.update()
         v.display()
     
