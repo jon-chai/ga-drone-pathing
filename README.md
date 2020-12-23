@@ -32,3 +32,6 @@ The simulation automatically begins in training mode.
 
 ### Modifiability
 Most of the modifiable parameters exist within the `setup` function. Play around with them and see what you can do! For any clarification, feel free to send us a message and we will be happy to assist.
+
+## License
+[MIT](https://choosealicense.com/licenses/mit/)
