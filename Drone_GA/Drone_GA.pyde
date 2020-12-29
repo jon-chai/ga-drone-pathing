@@ -3,7 +3,8 @@ import random as rand
 class Vehicle:
         
     mr = 0.1
-    # Target weight, Obstacle weight, Target percep, Obstacle percep, FOV, Drone weight, Drone percep, Max acceleration
+    # Genes/Parameters: Target weight, Obstacle weight, Target percep, Obstacle percep, FOV, Drone weight, 
+    # Drone percep, Max acceleration
     feature_creation = [lambda x: random(0, 5), lambda x:random(-5, 0), lambda x:random(20, 100), 
                         lambda x:random(20, 100), lambda x:random(PI/6, PI/2), lambda x:random(-5, 0),
                         lambda x:random(20, 100), lambda x:random(0.1, 1)]
@@ -224,7 +225,7 @@ class Vehicle:
 
 def crossover_mid(mating_pool):
     '''
-    Runs crossover mid on the mating pool and returns the next generation of vehicles
+    Applies midpoint crossover on the mating pool and returns the next generation of vehicles
     '''
     global num_vehicles
     
@@ -248,7 +249,7 @@ def crossover_mid(mating_pool):
 
 def crossover_random(mating_pool):
     '''
-    Runs crossover random on the mating pool and returns the next generation of vehicles
+    Applies random crossover on the mating pool and returns the next generation of vehicles
     '''
     global num_vehicles
     
@@ -398,7 +399,7 @@ def load_test_world():
 
 def draw():
     '''
-    Runs continuously
+    Runs every frame
     '''
     global gen, counter, vehicles, targets, obstacles, bound, best_drones, toggle
     
